@@ -40,23 +40,11 @@ def create_parser():
 
 def main(opt):
     cfg_path = 'configs/inference.yaml'
-    # model = create_model(cfg_path).cuda() #CHANGE
-    model = create_model(cfg_path)
+    model = create_model(cfg_path).cuda()
     print('##on##')
     print(model)
-    # 현재 이 파일(@/inference.py)의 디렉토리 경로
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # 프로젝트 루트 (inference.py 상위 디렉토리)
-    # project_root = os.path.dirname(base_dir)
-
-    # tmp/model.pt 절대 경로 만들기
-    model_path = os.path.join(base_dir, "tmp", "model69.pt")
-    # path_tmp = './logs/lightning_logs/version_18/checkpoints/epoch=69-step=24640.ckpt'
-    # model.load_state_dict(load_state_dict(model_path), strict=False)
-    # model.load_state_dict(torch.load(model_path), strict=False) #CHANGE
-    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
-
+    path_tmp = './logs/lightning_logs/version_18/checkpoints/epoch=69-step=24640.ckpt'
+    model.load_state_dict(load_state_dict(path_tmp), strict=False)
     #####
     # torch.save(model.state_dict(), '/home/undergrad/model_base/TextCtrl-Translate/tmp/model59.pt')
 
