@@ -41,7 +41,16 @@ def create_parser():
 def main(opt):
     cfg_path = 'configs/inference.yaml'
     model = create_model(cfg_path).cuda()
-    model.load_state_dict(load_state_dict(opt.ckpt_path), strict=False)
+    print('##on##')
+    print(model)
+    path_tmp = './logs/lightning_logs/version_18/checkpoints/epoch=69-step=24640.ckpt'
+    model.load_state_dict(load_state_dict(path_tmp), strict=False)
+    #####
+    # torch.save(model.state_dict(), '/home/undergrad/model_base/TextCtrl-Translate/tmp/model59.pt')
+
+    #####
+    # print('##off##');exit(0)
+    # model.load_state_dict(load_state_dict(opt.ckpt_path), strict=False)
     model.eval()
 
     dataset_dir = opt.dataset_dir

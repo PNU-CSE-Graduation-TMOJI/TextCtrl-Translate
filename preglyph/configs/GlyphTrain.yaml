@@ -1,17 +1,19 @@
+# python -X utf8 pretrain.py
+
 dataset:
   target: dataloader.LabelDataset
   params:
     size: 224
     length: 100000
-    font_path: ".../Syn_data/fonts/"
+    font_path: "C:\\Users\\user\\khmoon\\assign\\dataset\\Syn_data\\fonts\\"
     min_len: 1
-    max_len: 24
+    max_len: 14
 
 model:
   target: modules.LabelEncoder
   params:
     trainable: True
-    max_len: 24
+    max_len: 14
     emb_dim: 768
     n_heads: 8
     n_trans_layers: 12
@@ -21,7 +23,7 @@ model:
       target: modules.ViTSTREncoder
       params:
         freeze: True
-        ckpt_path: ".../weights/vitstr_base_patch16_224.pth"
+        ckpt_path: "C:\\Users\\user\\khmoon\\assign\\base\\TextCtrl\\weights\\vitstr_base_patch16_224.pth"
         size: 224
         patch_size: 16
         embed_dim: 768
@@ -32,12 +34,18 @@ model:
         in_chans: 1
 
 
-num_workers: 8
+num_workers: 32
 batch_size: 256
-check_freq: 10
+check_freq: 5
+
+# batch 6set 더 미리 준비, 메모리 사용량 증가 but 속도 개선
+prefetch_factor: 6
+# epoch 간 반복 시에도 DataLoader의 worker 프로세스를 유지
+persistent_workers: True
+
 
 lightning:
   max_epochs: 100
-  accelerator: "cuda"
-  devices: [0, 1, 2, 3]
+  accelerator: "gpu"
+  devices: 1
   default_root_dir: "./logs/pre_glyph_logs"

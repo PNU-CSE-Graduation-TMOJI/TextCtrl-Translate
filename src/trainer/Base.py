@@ -1,6 +1,7 @@
 import pytorch_lightning as pl
 import torch
 import torchvision
+import torch.distributed as dist
 import os
 from omegaconf import OmegaConf
 from diffusers import AutoencoderKL, UNet2DConditionModel
@@ -16,12 +17,18 @@ from .utils import (
 )
 import torch.distributed as torchdist
 from typing import Optional, Any, Union, List, Dict
-from src.module.abinet import (
-    ABINetIterModel,
-    MultiLosses,
-    CharsetMapper,
-    prepare_label,
-    postprocess
+# from src.module.abinet import (
+#     ABINetIterModel,
+#     MultiLosses,
+#     CharsetMapper,
+#     prepare_label,
+#     postprocess
+# )
+# TrOCR imports 추가
+from transformers import (
+    TrOCRProcessor,
+    VisionEncoderDecoderModel,
+    AutoConfig
 )
 import inspect
 from src.module.loss.vgg_loss import (
@@ -29,12 +36,13 @@ from src.module.loss.vgg_loss import (
     build_vgg_loss
 )
 
-
+import os
 
 
 class BaseTrainer(pl.LightningModule):
     def __init__(self, baseconfig):
         super().__init__()
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
         self.save_hyperparameters()
         self.data_dtype = torch.float32
         self.config = baseconfig
@@ -48,7 +56,16 @@ class BaseTrainer(pl.LightningModule):
         self.vae.to(self.data_dtype)
         self.noise_scheduler = get_obj_from_str(self.config.noise_scheduler).from_config(
             self.config.scheduler_config)
-        self.text_encoder = instantiate_from_config(self.config.text_encoder)
+        # self.text_encoder = instantiate_from_config(self.config.text_encoder)
+        ### modified ###
+        from transformers import CLIPTextModel, CLIPTokenizer
+        self.clip_tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
+        self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14")
+        self.text_encoder.requires_grad_(False)
+        self.text_encoder.to(self.data_dtype)
+        ################
+
+
         if self.config.text_encoder_optimized:
             self.text_encoder.requires_grad_(True)
         else:
@@ -57,24 +74,46 @@ class BaseTrainer(pl.LightningModule):
         self.unet = instantiate_from_config(self.config.unet)
         self.unet.load_state_dict(load_state_dict(self.config.unet_pretrained, location='cpu'), strict=True)
         if self.config.ocr_model.get("ocr_supervised", False):
-            print("Initialize ocr model from pretrained...")
-            self.ocr_model = ABINetIterModel(self.config.ocr_model)
-            self.ocr_resize = torchvision.transforms.Resize([self.config.ocr_model.height, self.config.ocr_model.width])
-            if os.path.exists(self.config.ocr_model.get("pretrained")):
-                ocr_model_dict = torch.load(self.config.ocr_model.pretrained)
-                self.ocr_model.load_state_dict(state_dict=ocr_model_dict)
-            else:
-                print("Initialize ocr_model failed!")
-                sys.exit()
+            # print("Initialize ocr model from pretrained...")
+            print("Initialize trocr model from pretrained...")
+            # self.ocr_model = ABINetIterModel(self.config.ocr_model)
+            # self.ocr_resize = torchvision.transforms.Resize([self.config.ocr_model.height, self.config.ocr_model.width])
+            # if os.path.exists(self.config.ocr_model.get("pretrained")):
+            #     ocr_model_dict = torch.load(self.config.ocr_model.pretrained)
+            #     self.ocr_model.load_state_dict(state_dict=ocr_model_dict)
+            # else:
+            #     print("Initialize ocr_model failed!")
+            #     sys.exit()
 
+            # self.ocr_model.to(self.data_dtype)
+            # if self.config.ocr_model.get("optimize", False):
+            #     self.ocr_model.requires_grad_(True)
+            # else:
+            #     print("Frozen ocr model weight...")
+            #     self.ocr_model.requires_grad_(False)
+            # self.charset = CharsetMapper(filename=self.config.ocr_model.charset_path)
+            # print("Initialize ocr charsetmapper from {}...".format(self.config.ocr_model.charset_path.rsplit('/', 1)[1]))
+            self.ocr_processor = TrOCRProcessor.from_pretrained(
+                self.config.ocr_model.model_name_or_path
+            )
+            
+            config = AutoConfig.from_pretrained(self.config.ocr_model.model_name_or_path)
+            config.num_beams = self.config.ocr_model.get("num_beams", 4)
+            
+            self.ocr_model = VisionEncoderDecoderModel.from_pretrained(
+                self.config.ocr_model.model_name_or_path, 
+                config=config
+            )
+            
+            # TrOCR 표준 입력 크기
+            self.ocr_resize = torchvision.transforms.Resize([384, 384])
+            
             self.ocr_model.to(self.data_dtype)
             if self.config.ocr_model.get("optimize", False):
                 self.ocr_model.requires_grad_(True)
             else:
-                print("Frozen ocr model weight...")
+                print("Frozen TrOCR model weight...")
                 self.ocr_model.requires_grad_(False)
-            self.charset = CharsetMapper(filename=self.config.ocr_model.charset_path)
-            print("Initialize ocr charsetmapper from {}...".format(self.config.ocr_model.charset_path.rsplit('/', 1)[1]))
         else:
             self.ocr_model = None
 
@@ -85,6 +124,9 @@ class BaseTrainer(pl.LightningModule):
         else:
             self.vgg19 = None
         self.count_params()
+        if dist.is_initialized():
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cuda.matmul.allow_tf32 = True
 
     def count_params(self):
         count_params(self.vae)
@@ -103,6 +145,12 @@ class BaseTrainer(pl.LightningModule):
         else:
             c = self.text_encoder(c)
         return c
+
+    # modified
+    def get_text_conditioning(self, c):
+        inputs = self.clip_tokenizer(c, padding="max_length", max_length=77, return_tensors="pt").to(self.device)
+        outputs = self.text_encoder(**inputs)
+        return outputs.last_hidden_state
 
     def on_train_start(self) -> None:
         pl_on_train_tart(self)
@@ -222,18 +270,37 @@ class BaseTrainer(pl.LightningModule):
             zt, t)
 
         # OCR Supervised
-        if self.ocr_model:
-            gt_ids, gt_lengths = prepare_label(texts, self.charset, self.device)
+        # if self.ocr_model:
+        #     gt_ids, gt_lengths = prepare_label(texts, self.charset, self.device)
+        # else:
+        #     gt_ids = None
+        #     gt_lengths = None
+        # return {"noise": noise, "timestep": t, "latent": zt,
+        #         "cond": c, "ids": gt_ids, "lengths": gt_lengths}
+        # Trocr용
+        if self.ocr_model: # modified
+            # TrOCR용 텍스트 토큰화
+            tokenized_texts = self.ocr_processor.tokenizer(
+                texts, 
+                padding=True, 
+                truncation=True, 
+                return_tensors="pt",
+                max_length=self.config.ocr_model.get("max_length", 256)
+            )
+            gt_labels = tokenized_texts.input_ids.to(self.device)
         else:
-            gt_ids = None
-            gt_lengths = None
+            gt_labels = None
+
         return {"noise": noise, "timestep": t, "latent": zt,
-                "cond": c, "ids": gt_ids, "lengths": gt_lengths}
+                "cond": c, "labels": gt_labels}  # ids, lengths 제거 
 
 
+    # UNet으로 노이즈 예측하는 핵심 함수
     def apply_model(self, dict_input):
-        t = dict_input["t"]
-        zt = dict_input["zt"]
+        # t = dict_input["t"]
+        # zt = dict_input["zt"]
+        t = dict_input["timestep"]
+        zt = dict_input["latent"]
         c = dict_input["cond"]
         noise_pred = self.unet(zt, t, c).sample
         return noise_pred
@@ -245,9 +312,15 @@ class BaseTrainer(pl.LightningModule):
         noise = dict_input["noise"]
         t = dict_input["timestep"]
         zt = dict_input["latent"]
-        gt_ids = dict_input["ids"]
-        gt_lengths = dict_input["lengths"]
-        mse_loss = nn.MSELoss()(noise_pred, noise)
+        
+        # abinet code
+        # gt_ids = dict_input["ids"]
+        # gt_lengths = dict_input["lengths"]
+        
+        # ✅ TrOCR용 코드로 변경
+        gt_labels = dict_input.get("labels", None)  # TrOCR용
+        # mse_loss = nn.MSELoss()(noise_pred, noise)
+        mse_loss = nn.MSELoss()(noise_pred.float(), noise.float())
         loss = mse_loss
 
         if self.config.ocr_model.get("ocr_supervised", False):
@@ -266,16 +339,62 @@ class BaseTrainer(pl.LightningModule):
                 l_f_vgg_per, l_f_vgg_style = build_vgg_loss(out_vgg)
                 reconstruction_loss = l_f_vgg_per * 0.01 + l_f_vgg_style * 100 + nn.MSELoss()(
                     batch["img"].to(self.data_dtype), pred_image_x0)
+            # pred_image_x0 = self.ocr_resize(pred_image_x0)
+            # outputs = self.ocr_model(pred_image_x0, mode="train")
+            # celoss_inputs = outputs[:3]
+            # ocr_loss = MultiLosses(True)(celoss_inputs, gt_ids, gt_lengths)
+            # TrOCR 입력 준비
             pred_image_x0 = self.ocr_resize(pred_image_x0)
-            outputs = self.ocr_model(pred_image_x0, mode="train")
-            celoss_inputs = outputs[:3]
-            ocr_loss = MultiLosses(True)(celoss_inputs, gt_ids, gt_lengths)
+            pixel_values = self.ocr_processor(
+                images=pred_image_x0, 
+                return_tensors="pt",
+                do_rescale=False  # ← 추가: 중복 rescaling 방지
+            ).pixel_values.to(self.device)
+            
+            # TrOCR - 단순한 하나의 loss 계산
+            ocr_outputs = self.ocr_model(
+                pixel_values=pixel_values,
+                labels=dict_input["labels"]
+            )
+            # ocr_loss = ocr_outputs.loss  # MultiLosses 대신 직접 사용
+            ocr_loss = ocr_outputs.loss.float()  # MultiLosses 대신 직접 사용
+
+            # modified
+            ###########
+            ocr_pred_text, ocr_gt_text = None, None
+            self.ocr_model.eval()
+            with torch.no_grad():
+                gen_ids = self.ocr_model.generate(
+                    pixel_values=pixel_values,
+                    max_new_tokens=64,          # 필요시 조정
+                    num_beams=1,                # beam search 원하면 3~5
+                    do_sample=False,            # 샘플링 원하면 True
+                    decoder_start_token_id=self.ocr_model.config.decoder_start_token_id
+                )
+                # 예측 문자열
+                ocr_pred_text = self.ocr_processor.batch_decode(
+                    gen_ids, skip_special_tokens=True
+                )
+                # 정답 문자열(라벨이 tokenizer id일 경우)
+                if gt_labels is not None:
+                    # gt_labels shape: (B, L) — pad가 -100이면 마스크 필요
+                    gt_ids = gt_labels.clone()
+                    gt_ids[gt_ids == -100] = self.ocr_processor.tokenizer.pad_token_id
+                    ocr_gt_text = self.ocr_processor.batch_decode(
+                        gt_ids, skip_special_tokens=True
+                    )
+            self.ocr_model.train()
+
+            print('pred:',ocr_pred_text,', gt:', ocr_gt_text)
+            ###########
 
             if self.config.reconstruction_loss:
                 loss = mse_loss + self.config.ocr_loss_alpha * ocr_loss + reconstruction_loss
+                # print(f'mse: {mse_loss} | alpha*ocr: {self.config.ocr_loss_alpha}*{ocr_loss}={self.config.ocr_loss_alpha * ocr_loss} | rec: {reconstruction_loss}')
                 return (loss, mse_loss, ocr_loss, reconstruction_loss)
             else:
                 loss = mse_loss + self.config.ocr_loss_alpha * ocr_loss
+                # print(f'mse: {mse_loss} | alpha*ocr: {self.config.ocr_loss_alpha}*{ocr_loss}={self.config.ocr_loss_alpha * ocr_loss}')
                 return (loss, mse_loss, ocr_loss)
         return (loss,)
 
@@ -426,7 +545,7 @@ class BaseTrainer(pl.LightningModule):
             _, _, h, w = batch["img"].shape
             torch_resize = torchvision.transforms.Resize([h, w])
             for i, caption in enumerate(batch["texts"]):
-                target_image = batch["img"][i].cpu()  
+                target_image = batch["img"][i].cpu()
                 target_image = target_image.clamp(0., 1.)
                 target_image = torch_resize(target_image)
 

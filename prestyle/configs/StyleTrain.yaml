@@ -1,20 +1,24 @@
+# python -X utf8 train.py
+
 data:
   target: "dataset.WrappedDataModule"
-  batch_size: 256
+  batch_size: 64
   train:
     size: 128
-    root_dir: ".../Syn_data/train/"
-    font_dir: ".../Syn_data/fonts/"
-    template_font: ".../Syn_data/fonts/arial.ttf"
+    root_dir: "C:\\Users\\user\\khmoon\\assign\\dataset\\Syn_data\\train\\"
+    font_dir: "C:\\Users\\user\\khmoon\\assign\\dataset\\Syn_data\\fonts\\"
+    template_font: "C:\\Users\\user\\khmoon\\assign\\dataset\\Syn_data\\fonts\\Pretendard-Medium.ttf"
 
   validation:
     size: 128
-    root_dir: ".../Syn_data/eval/"
-    font_dir: ".../Syn_data/fonts/"
-    template_font: ".../Syn_data/fonts/arial.ttf"
+    root_dir: "C:\\Users\\user\\khmoon\\assign\\dataset\\Syn_data\\eval\\"
+    font_dir: "C:\\Users\\user\\khmoon\\assign\\dataset\\Syn_data\\fonts\\"
+    template_font: "C:\\Users\\user\\khmoon\\assign\\dataset\\Syn_data\\fonts\\Pretendard-Medium.ttf"
 
-num_workers: 16
-check_freq: 10
+num_workers: 32
+check_freq: 1
+prefetch_factor: 6
+persistent_workers: True
 
 
 
@@ -28,7 +32,7 @@ model:
     emb_dim: 768
     ckpt_path:
     trainable: True
-    lr: 1e-5
+    lr: 5e-6
     alpha_removal: 1.0
     alpha_seg: 1.0
     alpha_color: 1.0
@@ -38,15 +42,17 @@ model:
 
 
 
-
+# load_ckpt_path: "/home/undergrad/model_base/TextCtrl-Translate/logs/lightning_logs/version_17/checkpoints/epoch=29-step=9990.ckpt"
 
 lightning:
   log_every_n_steps: 50
-  accumulate_grad_batches: 1
+  accumulate_grad_batches: 4
+  precision: 16       # 또는 "16-mixed" (v1.x)
   max_epochs: 80
-  accelerator: "cuda"
-  devices: [0, 1, 2, 3]
-  strategy: ddp
+  accelerator: "gpu"
+  devices: 1
+  # strategy: ddp
+  # strategy: single_device
   default_root_dir: "./logs/pre_style_logs"
 
 
@@ -58,3 +64,4 @@ imagelogger_callback:
     disable_wandb: false
     generation_kwargs:
       seed: 42
+≠

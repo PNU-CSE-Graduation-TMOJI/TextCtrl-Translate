@@ -1,0 +1,6 @@
+name: tc3
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+prefix: /home/undergrad/.conda/envs/tc3

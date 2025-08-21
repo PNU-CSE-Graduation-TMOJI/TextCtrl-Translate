@@ -1,11 +1,15 @@
 import pytorch_lightning as pl
 import torch
+import re
 import torch.nn as nn
 from model import StyleEncoder, SpatialHead, GlyphHead
 import torchvision
 from pytorch_lightning import Callback
 from omegaconf import OmegaConf
 
+def sanitize(name: str) -> str:
+    # / \ : * ? " < > |  →  _
+    return re.sub(r'[\\/:"*?<>|]+', "_", name)
 
 def count_params(model):
     total_params = sum(p.numel() for p in model.parameters())
@@ -60,14 +64,35 @@ class StyleNet(pl.LightningModule):
         opt = torch.optim.AdamW(filter(lambda p: p.requires_grad, self.parameters()), lr=lr)
         return opt
 
-    def dice_loss(self, predictive, target, ep = 1e-8):
-        b, c, h, w = predictive.size()
-        predictive = predictive.view(b, -1)
+    # def dice_loss(self, predictive, target, ep = 1e-8):
+    #     b, c, h, w = predictive.size()
+    #     predictive = predictive.view(b, -1)
+    #     target = target.view(b, -1)
+    #     intersection = 2 * torch.sum(predictive * target) + ep
+    #     union = torch.sum(predictive) + torch.sum(target) + ep
+    #     loss = 1 - intersection / union
+    #     return loss
+    
+    def dice_loss(self, pred, target, eps: float = 1e-6):
+        """
+        Safe Dice loss.
+        union==0 (예: 글자가 전혀 없는 배치) →  loss 0 으로 처리
+        """
+        b, c, h, w = pred.size()
+        pred   = pred.view(b, -1)
         target = target.view(b, -1)
-        intersection = 2 * torch.sum(predictive * target) + ep
-        union = torch.sum(predictive) + torch.sum(target) + ep
-        loss = 1 - intersection / union
-        return loss
+
+        inter  = 2.0 * (pred * target).sum(dim=-1)           # numerator
+        union  = pred.sum(dim=-1) + target.sum(dim=-1)        # denominator
+
+        zero_mask = union < eps                               # bool [B]
+        dice = torch.where(
+            zero_mask,
+            torch.zeros_like(union),                          # union==0 → loss 0
+            1.0 - (inter + eps) / (union + eps)               # 정상 분수
+        )
+        return dice.mean()
+
 
     def freeze(self):
         for param in self.parameters():
@@ -296,8 +321,9 @@ class StyleNetImageLogger(Callback):
         )
         os.makedirs(path, exist_ok=True)
         for caption, grid in zip(all_captions, all_image_grids):
+            safe = sanitize(caption)
             img = ToPILImage()(grid)
-            img.save(os.path.join(path, caption + ".png"))
+            img.save(os.path.join(path, safe + ".png"))
 
         self.logger_log_image(
             pl_module, all_captions,

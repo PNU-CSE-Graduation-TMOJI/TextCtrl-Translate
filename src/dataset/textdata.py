@@ -77,6 +77,26 @@ class TextDataset(Dataset):
                 self.i_s.append(os.path.join(data_dir, 'i_s', tmp_name))
                 self.t_f.append(os.path.join(data_dir, 't_f', tmp_name))
 
+        # ✅ subset_ratio 처리 추가
+        if hasattr(config, 'subset_ratio') and config.subset_ratio < 1.0:
+            import random
+            
+            total_size = len(self.i_s)
+            subset_size = int(total_size * config.subset_ratio)
+            
+            # 랜덤하게 인덱스 선택
+            indices = list(range(total_size))
+            random.shuffle(indices)
+            selected_indices = indices[:subset_size]
+            
+            # 선택된 인덱스만 유지
+            self.i_s = [self.i_s[i] for i in selected_indices]
+            self.t_f = [self.t_f[i] for i in selected_indices]
+            self.text_s = [self.text_s[i] for i in selected_indices]
+            self.text_t = [self.text_t[i] for i in selected_indices]
+            
+            print(f"Using subset: {subset_size}/{total_size} samples ({config.subset_ratio*100:.1f}%)")
+
         self.transform = T.Compose([
             T.Resize((self.size, self.size)),
             T.ToTensor(),

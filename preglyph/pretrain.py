@@ -5,6 +5,8 @@ from omegaconf import OmegaConf
 from utils import instantiate_from_config
 from pytorch_lightning.callbacks import ModelCheckpoint
 
+# cudnn은 GPU에서 최대 성능을 내도록 해줌
+# 그런데 연산오류나, 비결정적 알고리즘 선택으로 인해 매번 다른결과가 될수도 있기에 꺼놓을 수 있음
 torch.backends.cudnn.enabled = False
 
 def get_dataloader(cfgs):

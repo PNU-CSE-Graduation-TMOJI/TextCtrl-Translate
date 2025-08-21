@@ -19,6 +19,10 @@ def autocast(f, enabled=True):
             return f(*args, **kwargs)
 
     return do_autocast
+
+# 직접 접근 못하게 추상화
+# 재사용성 높이기 위해 다형성 챙기기
+# 텍스트/이미지 임베딩 모델이 이 클래스를 상속받아 일관된 인터페이스를 갖도록 설계
 class AbstractEmbModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -77,8 +81,7 @@ class AbstractEmbModel(nn.Module):
 
 
 
-
-
+# 텍스트 임베딩에서 Transformer에 위치 정보를 주기 위한 사인-코사인 위치 임베딩
 class PositionalEncoding(nn.Module):
 
     def __init__(self, d_model, dropout=0.1, max_len=5000):
@@ -97,7 +100,7 @@ class PositionalEncoding(nn.Module):
         x = x + torch.tile(self.pe[None, ...].to(x.device), (x.shape[0], 1, 1))
         return self.dropout(x)
 
-
+# VisionTransformer 상속, OCR 모델처럼 사용
 class ViTSTREncoder(VisionTransformer):
     '''
     ViTSTREncoder is basically a ViT that uses ViTSTR weights
@@ -150,7 +153,7 @@ class ViTSTREncoder(VisionTransformer):
     def encode(self, x):
         return self(x)
 
-
+# 입력된 텍스트 라벨을 임베딩으로 변환
 class LabelEncoder(AbstractEmbModel, pl.LightningModule):
 
     def __init__(self, max_len, emb_dim, n_heads=8, n_trans_layers=12, ckpt_path=None, trainable=False,
@@ -162,8 +165,19 @@ class LabelEncoder(AbstractEmbModel, pl.LightningModule):
         self.emd_dim = emb_dim
         self.n_heads = n_heads
         self.n_trans_layers = n_trans_layers
-        self.character = string.printable[:-6]
+        # [영어]
+        # self.character = string.printable[:-6]
+        
+        # [한글]
+        self.character = [chr(i) for i in range(ord('가'), ord('힣')+1)]  
         self.num_cls = len(self.character) + 1
+
+        #[한글] 문자 → 인덱스 (1부터 시작, 0은 PAD) 
+        self.char2idx = {ch: i + 1 for i, ch in enumerate(self.character)}
+
+        #[한글] 인덱스 → 문자 (0은 PAD → 공백으로 둠) 
+        self.idx2char = {i + 1: ch for i, ch in enumerate(self.character)}
+        self.idx2char[0] = "[PAD]"
 
         self.label_embedding = nn.Embedding(self.num_cls, self.emd_dim)
         self.pos_embedding = PositionalEncoding(d_model=self.emd_dim, max_len=self.max_len)
@@ -205,7 +219,12 @@ class LabelEncoder(AbstractEmbModel, pl.LightningModule):
         for label in labels:
             if len(label) > self.max_len:
                 label = label[:self.max_len]
-            index = [self.character.find(c) + 1 for c in label]
+            # [영어]
+            # index = [self.character.find(c) + 1 for c in label]
+
+            # [한글] 한 글자씩 인덱스 변환, 없는 글자는 PAD(0)
+            index = [self.char2idx.get(c, 0) for c in label]
+
             index = index + [0] * (self.max_len - len(index))
             indexes.append(index)
 

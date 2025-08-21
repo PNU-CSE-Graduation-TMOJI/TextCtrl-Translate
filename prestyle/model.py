@@ -5,6 +5,8 @@ from functools import partial
 import torch.nn.functional as F
 from timm.models.layers import drop_path, to_2tuple, trunc_normal_
 from einops import rearrange
+
+# 이미지 패치 임베딩으로 바꾸기
 class PatchEmbed(nn.Module):
     """
     Image to Patch Embedding
@@ -29,7 +31,7 @@ class PatchEmbed(nn.Module):
         x = self.proj(x).flatten(2).transpose(1, 2)
         return x
 
-
+# Transformer 구조에서 사용되는 self-attention블록
 class Attention(nn.Module):
     def __init__(
             self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0.,
@@ -75,6 +77,7 @@ class Attention(nn.Module):
         x = self.proj_drop(x)
         return x
 
+
 class Mlp(nn.Module):
     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
         super().__init__()
@@ -108,6 +111,7 @@ class DropPath(nn.Module):
         return 'p={}'.format(self.drop_prob)
 
 
+# Block은 Attention → MLP 구조로, Residual + LayerNorm을 포함
 class Block(nn.Module):
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
@@ -153,6 +157,7 @@ def get_sinusoid_encoding_table(n_position, d_hid):
     return torch.FloatTensor(sinusoid_table).unsqueeze(0)
 
 
+# VIT백본 구조
 class VisionTransformerEncoder(nn.Module):
     def __init__(self, img_size=128, patch_size=16, in_chans=3, num_classes=0, embed_dim=768, depth=12,
                  num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop_rate=0., attn_drop_rate=0.,
@@ -236,7 +241,7 @@ class VisionTransformerEncoder(nn.Module):
         x = self.head(x)
         return x
 
-
+# VisionTransformerEncoder를 사용하여 입력 이미지를 처리하고, 공간적 & 문자/모양 스타일 정보 출력
 class StyleEncoder(nn.Module):
     def __init__(self, image_size=128, patch_size=16, in_chans=3, embed_dim=768):
         super().__init__()
@@ -283,7 +288,7 @@ class StyleEncoder(nn.Module):
         return x_spatial, x_glyph
 
 
-
+# 여기서 removal head 및 segmentation head 시행
 class SpatialHead(nn.Module):
 
     def __init__(self, image_size=128, patch_size=16, in_chans=3, embed_dim=768):
@@ -326,7 +331,7 @@ class SpatialHead(nn.Module):
         return out_removal, out_seg
 
 
-
+# color_encoder(글꼴 색)및 font_encoder(글꼴 스타일)
 class GlyphHead(nn.Module):
     def __init__(self, image_size=128, patch_size=16, in_chans=3, embed_dim=768, res_dim=768,
                  color_backend='resnet34', font_backend='resnet34', pretrained=False):
@@ -384,6 +389,7 @@ class GlyphHead(nn.Module):
 
         return out_c, out_f
 
+# attension마스크 기반으로 residual 연결과, segmentation처리
 class Residual_with_Attention(nn.Module):
     def __init__(self, image_size=128, patch_size=16, in_channels=768, out_channels=768, stride=1, padding=1, dilation=1):
         super().__init__()
@@ -404,6 +410,7 @@ class Residual_with_Attention(nn.Module):
         avg_pool = torch.mean(x_in, dim=1, keepdim=True)
         max_pool, _ = torch.max(x_in, dim=1, keepdim=True)
         pool_mask = self.sig(self.conv_pool(torch.cat((avg_pool, max_pool), dim=1)))
+        pool_mask = pool_mask.clamp_min(1e-3)        # ← 완전 0 방지
         x_seg = x_in * pool_mask
         x_out = rearrange(x_seg, 'b c h w -> b (h w) c')
 
@@ -412,7 +419,7 @@ class Residual_with_Attention(nn.Module):
 
 import extractors
 
-
+# 다양한 크기의 전역 맥락을 얻기 위한 Pyramid Scene Parsing모듈 
 class PSPModule(nn.Module):
     def __init__(self, features, out_features=768, sizes=(1, 2, 3, 6)):
         super().__init__()
@@ -438,7 +445,8 @@ class Upsample(nn.Module):
         super().__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 3, padding=1),
-            nn.BatchNorm2d(out_channels),
+            # nn.BatchNorm2d(out_channels),
+            nn.InstanceNorm2d(out_channels, eps=1e-3, affine=True),  # ← 변경
             nn.PReLU()
         )
 
@@ -459,6 +467,7 @@ def calc_mean_std(features):
     features_std = features.reshape(batch_size, c, -1).std(dim=2).reshape(batch_size, c, 1, 1) + 1e-6
     return features_mean, features_std
 
+# 스타일 전이 시 사용된 adain기법
 def adain(content_features, style_features):
     """
     Adaptive Instance Normalization

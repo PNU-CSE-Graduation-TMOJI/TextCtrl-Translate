@@ -1,0 +1,16 @@
+/weights
+/weights_tmp
+
+/Syn_data
+/Syn_data/*
+
+/logs
+
+/example_result
+/example_tmp
+
+/imgs
+
+/tmp
+
+result.txt

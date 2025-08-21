@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 from random import choice, randint
 from utils import *
 
+
 class LabelDataset(data.Dataset):
 
     def __init__(self, size, length, font_path, min_len, max_len) -> None:
@@ -18,7 +19,8 @@ class LabelDataset(data.Dataset):
         self.size = size
         self.font_dir = font_path
 
-        self.character = string.printable[:-6]
+        # self.character = string.printable[:-6] 영어
+        self.character = [chr(i) for i in range(ord('가'), ord('힣')+1)]  # 한글로 수정
         self.min_len = min_len
         self.max_len = max_len
 
@@ -26,7 +28,8 @@ class LabelDataset(data.Dataset):
         self.resize = transforms.Resize((self.size, self.size), transforms.InterpolationMode.BICUBIC, antialias=True)
 
         self.words = []
-        with open("words.txt", 'r') as f:
+        # with open("words.txt", 'r') as f: 영어
+        with open("words.txt", 'r', encoding='utf-8') as f: # 한글
             lines = f.readlines()
             for line in lines:
                 texts = line.strip().split(' ')
