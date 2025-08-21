@@ -14,3 +14,6 @@
 /tmp
 
 result.txt
+
+__pycache__/
+*.pyc
