@@ -17,3 +17,6 @@ __pycache__/
 /tmp
 
 result.txt
+
+/ssh_input
+/ssh_output
