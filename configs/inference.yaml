@@ -44,33 +44,8 @@ model:
       font_path: "weights/arial.ttf"
 
       ocr_model:
-        height: 32
-        width: 128
+        model_name_or_path: "/home/undergrad/model_base/TextCtrl-Translate/weights/trocr-ko"
         ocr_supervised: False
-        pretrained: weights/ocr_model.pth
         optimize: false
-        max_length: 25
-        charset_path: src/module/abinet/data/charset_36.txt
-        iter_size: 3
-        ensemble: ''
-        use_vision: False
-        vision:
-          checkpoint:
-          loss_weight: 1.
-          attention: 'position'
-          backbone: 'transformer'
-          backbone_ln: 3
-          max_length: 25
-          charset_path: src/module/abinet/data/charset_36.txt
-        language:
-          checkpoint:
-          num_layers: 4
-          loss_weight: 1.
-          detach: True
-          use_self_attn: False
-          max_length: 25
-          charset_path: src/module/abinet/data/charset_36.txt
-        alignment:
-          loss_weight: 1.
-          max_length: 25
-          charset_path: src/module/abinet/data/charset_36.txt
+        max_length: 256
+        num_beams: 4

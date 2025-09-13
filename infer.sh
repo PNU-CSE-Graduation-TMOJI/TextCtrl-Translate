@@ -54,6 +54,23 @@ with open(is_txt, "w", encoding="utf-8") as fs, open(it_txt, "w", encoding="utf-
         fs.write(f"{fname} {a.get('source_text','')}\n")  # i_s.txt = 원문
         ft.write(f"{fname} {a.get('target_text','')}\n")  # i_t.txt = 번역
 
+# tospi-dict('first : all in word convert to 'ㄱ')
+# with open(is_txt, "w", encoding="utf-8") as fs, open(it_txt, "w", encoding="utf-8") as ft:
+#     for i, a in enumerate(areas, start=start):
+#         x1, y1, x2, y2 = map(int, a["bbox"])
+#         fname = f"{i:0{digits}d}.png"
+#         base.crop((x1, y1, x2, y2)).save(os.path.join(dataset_dir, "i_s", fname))
+
+#         src = a.get("source_text", "")
+#         tgt = a.get("target_text", "")
+#         # 1) 단순히 길이만큼 'ㄱ'
+#         masked = "ㄱ" * len(src)
+#         # (선택) 공백은 보존하고 나머지만 'ㄱ'로 가리고 싶다면 아래로 교체:
+#         # masked = "".join("ㄱ" if ch.strip() else ch for ch in tgt)
+
+#         fs.write(f"{fname} {masked}\n")  # i_s.txt = 마스킹된 원문
+#         ft.write(f"{fname} {tgt}\n")     # i_t.txt = 타겟 원문
+
 print(dataset_dir, end="")
 PY
 )"

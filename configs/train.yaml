@@ -63,47 +63,16 @@ model:
       font_path: "/home/undergrad/model_base/TextCtrl-Translate/Syn_data/fonts/Pretendard-Medium.ttf"
 
       ocr_model:
-        # model_name_or_path: "/home/undergrad/model_base/TextCtrl-Translate/weights/trocr_model.bin"
-        model_name_or_path: "/home/undergrad/model_base/ko_trocr_tr/output/fold4/"
+        model_name_or_path: "/home/undergrad/model_base/TextCtrl-Translate/weights/trocr-ko"
         ocr_supervised: True
         optimize: false
         max_length: 256
         num_beams: 4
-        # height: 32
-        # width: 128
-        # ocr_supervised: True
-        # pretrained: ".../weights/ocr_model.pth"
-        # optimize: false
-        # max_length: 25
-        # charset_path: ".../src/module/abinet/data/charset_36.txt"
-        # iter_size: 3
-        # ensemble: ''
-        # use_vision: False
-        # vision:
-        #   checkpoint:
-        #   loss_weight: 1.
-        #   attention: 'position'
-        #   backbone: 'transformer'
-        #   backbone_ln: 3
-        #   max_length: 25
-        #   charset_path: ".../src/module/abinet/data/charset_36.txt"
-        # language:
-        #   checkpoint:
-        #   num_layers: 4
-        #   loss_weight: 1.
-        #   detach: True
-        #   use_self_attn: False
-        #   max_length: 25
-        #   charset_path: ".../src/module/abinet/data/charset_36.txt"
-        # alignment:
-        #   loss_weight: 1.
-        #   max_length: 25
-        #   charset_path: ".../src/module/abinet/data/charset_36.txt"
 
       vgg_weight: "/home/undergrad/model_base/TextCtrl-Translate/weights/vgg19.pth"
 
 #####################################################Lightning##########################################
-load_ckpt_path: "/home/undergrad/model_base/TextCtrl-Translate/logs/lightning_logs/version_17/checkpoints/epoch=29-step=9990.ckpt" # model ckpt
+# load_ckpt_path: "/home/undergrad/model_base/TextCtrl-Translate/logs/lightning_logs/version_17/checkpoints/epoch=29-step=9990.ckpt" # model ckpt
 
 lightning:
   precision: 32
@@ -114,14 +83,6 @@ lightning:
   strategy: ddp # ddp, dp?
   default_root_dir: "./logs"
   devices: [4, 5, 6, 7]
-  # [4, 5, 6, 7]
-  # strategy: 
-  #   class_path: pytorch_lightning.strategies.DDPStrategy
-  #   init_args:
-  #     gradient_as_bucket_view: false    # ← 추가 (stride 문제 해결)
-  #     find_unused_parameters: false     # ← 추가 (성능 향상)
-  #     static_graph: true                # ← 추가 (성능 향상)
-  #     bucket_cap_mb: 25                 # ← 추가 (메모리 최적화)
 
 image_logger:
   target: "src.trainer.Base.BaseImageLogger"

@@ -1,52 +1,73 @@
-<h1 align="center"> <em>TextCtrl: Diffusion-based Scene Text Editing with 
-    
-Prior Guidance Control [NeurIPS 2024] </em></h1>
+<h1 align="center"> <em>TextCtrl-Translate: Extending TextCtrl 
+
+with TOSPI and Multilingual Support </em></h1>
 
 <p align="center">
-<a href='https://arxiv.org/abs/2410.10133'><img src='https://img.shields.io/badge/Paper-Arxiv-red'></a> 
-<a href='https://github.com/weichaozeng/TextCtrl'><img src='https://img.shields.io/badge/Code-Github-green'></a>
-<a href='https://github.com/weichaozeng/TextCtrl'><img src="https://visitor-badge.laobi.icu/badge?page_id=weichaozeng.TextCtrl" alt="visitor badge"/></a>
+<a href='https://arxiv.org/abs/2410.10133'><img src='https://img.shields.io/badge/Origin-Paper-red'></a> 
+<a href='https://github.com/weichaozeng/TextCtrl'><img src='https://img.shields.io/badge/Origin-Code-green'></a>
 </p>
 
-![TextCtrl_model](demo/TextCtrl.png)
+<!-- TOSPI로 변경 -->
+![TextCtrl_model](demo/TextCtrl_Translate.png) 
 
-## TODOs
-- [x] Release ScenePair benchmark dataset and code of model;
-- [x] Release checkpoints and inference code;
-- [x] Release tranining pipeline;
+### About
+This repository is based on **TextCtrl** [[Zeng et al., 2024]](https://arxiv.org/abs/2410.10133).  
+We extend the original framework with:
+- **TOSPI** (Text Object Shape Powered Inference)  
+- **Multilingual Training**: enabling text editing and translation from other languages **into Korean**.  
+
+### Differences from the original
+- Original TextCtrl focused on Japanese text editing.  
+- Our extension introduces **cross-lingual capabilities**: currently supports **other languages → Korean** text translation/editing.  
+- Compatible with the original checkpoints while supporting **new translation tasks**.  
 
 
 ## 1 Installation
+
+- python = 3.11.13
+- torch = 2.5.1+cu124
+- cuda = 12.4
+  - used for train : NVIDIA RTX A5000 24GB * 4
+  - used for inference : NVIDIA RTX A5000 24GB * 1
+
 ### 1.1 Code Preparation 
 ```bash
 # Clone the repo
-$ git clone https://github.com/weichaozeng/TextCtrl.git
-$ cd TextCtrl/
+$ git clone https://github.com/PNU-CSE-Graduation-TMOJI/TextCtrl-Translate.git
+$ cd TextCtrl-Translate/
 # Install required packages
-$ conda create --name textctrl python=3.8
-$ conda activate textctrl
-$ pip install torch==1.13.0+cu116 torchvision==0.14.0+cu116 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu116
+$ conda create --name tospi python=3.11 -y
+$ conda activate tospi
 $ pip install -r requirement.txt
 ```
 ### 1.2 Checkpoints Preparation
-Download the checkpoints from [Link_1](https://drive.google.com/drive/folders/1OMgXXIXi-VN2hTlPywtdzIW5AJMIHzF0?usp=drive_link) and [Link_2](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5).The file structure should be set as follows:
+Download the checkpoints from  
+- [Link_1](https://drive.google.com/drive/folders/1OMgXXIXi-VN2hTlPywtdzIW5AJMIHzF0?usp=drive_link) (project-provided custom weights: style encoder, VGG19, monitor, etc.)  
+- [Link_2](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5) (pretrained Stable Diffusion v1.5: UNet, VAE, scheduler)  
+- [Link_3](https://huggingface.co/ea3124/tospi/tree/main) (text/ocr-related weights: style encoder, text encoder, TrOCR, tmp checkpoint)  
+
+The file structure should be set as follows:
 ```bash
-TextCtrl/
-├── weights/
-│   ├── model.pth                      # weight of style encoder and unet 
-│   ├── text_encoder.pth               # weight of pretrained glyph encoder
-│   ├── style_encoder.pth              # weight of pretrained style encoder
-│   ├── vision_model.pth               # monitor weight
-│   ├── ocr_model.pth                  # ocr weight
-│   ├── vgg19.pth                      # vgg weight
-│   ├── vitstr_base_patch16_224.pth    # vitstr weight
-│   └── sd/                            # pretrained weight of stable-diffusion-v1-5
-│       ├── vae/
-│       ├── unet/
-│       └── scheduler/ 
-├── README.md
+TextCtrl-Translate/
+├── weights
+│   ├── model.pth                             # weight of style encoder and unet [Link_1]
+│   ├── sd                                    # pretrained weight of stable-diffusion-v1-5 [Link_2]
+│   │   ├── scheduler
+│   │   ├── unet
+│   │   └── vae
+│   ├── style_encoder.ckpt                    # pretrained style encoder [Link_3]
+│   ├── text_encoder.ckpt                     # pretrained glyph encoder [Link_3]
+│   ├── trocr-ko                              # OCR weight [Link_3]
+│   │   ├── config.json
+│   │   └── trocr_model.bin                   
+│   ├── vgg19.pth                             # VGG19 feature extractor [Link_1]
+│   ├── vision_model.pth                      # monitor model [Link_1]
+│   └── vitstr_base_patch16_224.pth           # ViTSTR model [Link_1]
 ├── ...
+├── tmp
+│   └── model69.pt                            # tmp checkpoint [Link_3]
 ```
+
 ## 2 Inference
 ### 2.1 Data Preparation
 The file structure of inference data should be set as the *example/*:  
@@ -61,7 +82,7 @@ TextCtrl/
 ### 2.2 Edit Arguments
 Edit the arguments in *inference.py*, especially:
 ```bash
-parser.add_argument("--ckpt_path", type=str, default="weights/model.pth")
+parser.add_argument("--ckpt_path", type=str, default="tmp/model69.pth")
 parser.add_argument("--dataset_dir", type=str, default="example/")
 parser.add_argument("--output_dir", type=str, default="example_result/")
 ```
@@ -70,23 +91,23 @@ parser.add_argument("--output_dir", type=str, default="example_result/")
 ### 2.3 Generate Images
 The inference result could be found in *example_result/* after:
 ```bash
-$ PYTHONPATH=.../TextCtrl/ python inference.py
+$ PYTHONPATH=.../TextCtrl-Translate/ python inference.py
 ```
 
 ### 2.4 Inference Results
-| Source Images | Target Text | Infer Results | Reference GT |
-| ---           |     ---     |     ---       |        --- |
-| <img src="./demo/demo_results/s_0.png" width="200">  |   *"Private"*   |    <img src="./demo/demo_results/t_0.png" width="200">   |   <img src="./demo/demo_results/r_0.png" width="200">    |
-| <img src="./demo/demo_results/s_1.png" width="200">  |   *"First"*     |    <img src="./demo/demo_results/t_1.png" width="200">   |   <img src="./demo/demo_results/r_1.png" width="200">    |
-| <img src="./demo/demo_results/s_2.png" width="200">  |   *"RECORDS"*   |    <img src="./demo/demo_results/t_2.png" width="200">   |   <img src="./demo/demo_results/r_2.png" width="200">    |
-| <img src="./demo/demo_results/s_3.png" width="200">  |   *"Sunset"*    |    <img src="./demo/demo_results/t_3.png" width="200">   |   <img src="./demo/demo_results/r_3.png" width="200">    |
-| <img src="./demo/demo_results/s_4.png" width="200">  |   *"Network"*   |    <img src="./demo/demo_results/t_4.png" width="200">   |   <img src="./demo/demo_results/r_4.png" width="200">    |
+| Source Images | Target Text | Infer Results |
+| ---           |     ---     |           --- |
+| <img src="./demo/demo_results/s_0.png" width="200">  |   *"정지"*   |    <img src="./demo/demo_results/t_0.png" width="200">   |
+| <img src="./demo/demo_results/s_1.png" width="200">  |   *"경고"*     |    <img src="./demo/demo_results/t_1.png" width="200">   |
+| <img src="./demo/demo_results/s_2.png" width="200">  |   *"서행"*   |    <img src="./demo/demo_results/t_2.png" width="200">   |
+| <img src="./demo/demo_results/s_3.png" width="200">  |   *"가수"*    |    <img src="./demo/demo_results/t_3.png" width="200">   |
 
 
 
 ## 3 Training
 ### 3.1 Data Preparation
-The training relies on synthetic data generated by [SRNet-Datagen](https://github.com/youdao-ai/SRNet-Datagen) with some [modification](modify/) for required elements. The file structure should be set as follows:
+The training relies on synthetic data generated by 
+[SRNet-Datagen_kr](https://github.com/PNU-CSE-Graduation-TMOJI/SRNet-Datagen_kr).
 ```bash
 Syn_data/
 ├── fonts/
@@ -145,7 +166,7 @@ $ python train.py
 
 
 
-## 4 Evaluation
+<!-- ## 4 Evaluation
 ### 4.1 Data Preparation
 Download the ScenePair dataset from [Link](https://drive.google.com/file/d/1m_o2R2kFj_hDXJP5K21aC7lKs-eUky9s/view?usp=sharing) and unzip the files. The structure of each folder is as follows:  
 ```bash
@@ -157,8 +178,8 @@ Download the ScenePair dataset from [Link](https://drive.google.com/file/d/1m_o2
 │   ├── i_t.txt             # filename and text label of images in t_f/
 │   ├── i_s_full.txt        # filename, text label, corresponding full-size image name and location information of images in i_s/
 │   └── i_t_full.txt        # filename, text label, corresponding full-size image name and location information of images in t_f/
-```
-### 4.2 Generate Images
+``` -->
+<!-- ### 4.2 Generate Images
 Before evaluation, corresponding edited images should be generated for a certain method based on the ScenePair dataset and should be saved in a *'.../result_folder/'* with the same filename. Result of some methods on ScenePair dataset are provided [here](https://drive.google.com/file/d/1343td96X7SuE0hYsMbTHALFmr1Md7SnQ/view?usp=drive_link).
 
 ### 4.3 Style Fidelity
@@ -169,24 +190,13 @@ $ python evaluation.py --target_path .../result_folder/ --gt_path .../ScenePair/
 ```
 
 ### 4.4 Text Accuracy
-ACC and NED are used to evaluate the text accuracy of edited result, with the offical code and checkpoint in [clovaai/deep-text-recognition-benchmark](https://github.com/clovaai/deep-text-recognition-benchmark).  
+ACC and NED are used to evaluate the text accuracy of edited result, with the offical code and checkpoint in [clovaai/deep-text-recognition-benchmark](https://github.com/clovaai/deep-text-recognition-benchmark).   -->
 
 ## Related Resources
-Many thanks to these great projects [lksshw/SRNet](https://github.com/lksshw/SRNet)
-, [youdao-ai/SRNet-Datagen](https://github.com/youdao-ai/SRNet-Datagen)
-, [qqqyd/MOSTEL](https://github.com/qqqyd/MOSTEL)
-, [UCSB-NLP-Chang/DiffSTE](https://github.com/UCSB-NLP-Chang/DiffSTE)
-, [ZYM-PKU/UDiffText](https://github.com/ZYM-PKU/UDiffText)
-, [TencentARC/MasaCtrl](https://github.com/TencentARC/MasaCtrl)
-, [unilm/textdiffuser](https://github.com/microsoft/unilm/tree/master/textdiffuser)
-, [tyxsspa/AnyText](https://github.com/tyxsspa/AnyText).
+Our work is built upon and inspired by the following projects:
 
-## Citation
-    @article{zeng2024textctrl,
-      title={TextCtrl: Diffusion-based scene text editing with prior guidance control},
-      author={Zeng, Weichao and Shu, Yan and Li, Zhenhang and Yang, Dongbao and Zhou, Yu},
-      journal={Advances in Neural Information Processing Systems},
-      volume={37},
-      pages={138569--138594},
-      year={2024}
-    }
+- [ko_trocr](https://github.com/ddobokki/ko_trocr)
+- [PNU-CSE-Graduation-TMOJI/ko_trocr_tr](https://github.com/PNU-CSE-Graduation-TMOJI/ko_trocr_tr)
+- [youdao-ai/SRNet-Datagen](https://github.com/youdao-ai/SRNet-Datagen)
+- [PNU-CSE-Graduation-TMOJI/SRNet-Datagen_kr](https://github.com/PNU-CSE-Graduation-TMOJI/SRNet-Datagen_kr)
+- [weichaozeng/TextCtrl](https://github.com/weichaozeng/TextCtrl)
