@@ -8,7 +8,9 @@ with TOSPI and Multilingual Support </em></h1>
 </p>
 
 <!-- TOSPI로 변경 -->
-![TextCtrl_model](demo/TextCtrl_Translate.png) 
+<p align="center">
+  <img src="demo/TextCtrl_Translate.png" width="600">
+</p>
 
 ### About
 This repository is based on **TextCtrl** [[Zeng et al., 2024]](https://arxiv.org/abs/2410.10133).  
@@ -96,7 +98,7 @@ $ PYTHONPATH=.../TextCtrl-Translate/ python inference.py
 
 ### 2.4 Inference Results
 | Source Images | Target Text | Infer Results |
-| ---           |     ---     |           --- |
+| ---           |    :---:    |           --- |
 | <img src="./demo/demo_results/s_0.png" width="200">  |   *"정지"*   |    <img src="./demo/demo_results/t_0.png" width="200">   |
 | <img src="./demo/demo_results/s_1.png" width="200">  |   *"경고"*     |    <img src="./demo/demo_results/t_1.png" width="200">   |
 | <img src="./demo/demo_results/s_2.png" width="200">  |   *"서행"*   |    <img src="./demo/demo_results/t_2.png" width="200">   |
